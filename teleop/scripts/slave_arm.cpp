@@ -82,6 +82,13 @@ static double clampd(double v, double lo, double hi) {
   return std::max(lo, std::min(hi, v));
 }
 
+// Reflect a 6-vector [x, y, z, rx, ry, rz] across the X–Z plane (negate Y).
+// Maps the master's base frame to the slave's when the two arms are placed
+// back-to-back, so the slave copies the master's motion as a mirror image.
+static Pose6 mirrorXZ(const Pose6& v) {
+  return {v[0], -v[1], v[2], -v[3], v[4], -v[5]};
+}
+
 static CtrlComponents* createCtrlComponents() {
   auto* ctrl = new CtrlComponents();
   ctrl->dt = 0.002;
@@ -548,7 +555,7 @@ class SlaveTeleopArm {
       for (int i = 0; i < 6; ++i) {
         p[i] = teleop_frame_.pose[i];
       }
-      return p;
+      return mirrorXZ(p);
     }
     return current_pose_;
   }
