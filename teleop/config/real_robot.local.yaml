@@ -1,0 +1,55 @@
+# 实机默认参数示例。复制为 real_robot.local.yaml 后按需修改，再执行：
+#   source /opt/ros/noetic/setup.bash
+#   ./teleop/scripts/load_real_params.sh
+#
+# 说明：布尔值 true/false；IP 按现场修改；导纳与限位可按手感微调。
+
+# ---------- 全局（与代码中 /master、/slave 命名空间一致）----------
+master:
+  enable_sim: false          # 主端：false = 真机状态 + 真力话题
+  arm_ip: "192.168.123.110"  # 主端 Z1（状态接口 unitree_arm_interface 所用 IP）
+  latency_low: 0.0           # 实机一般关随机延迟；与 communication 仿真发包无关时可设 0
+  latency_high: 0.0
+
+slave:
+  enable_sim: false
+  arm_ip: "192.168.120.110"  # 从端 Z1
+  latency_low: 0.0
+  latency_high: 0.0
+
+# ---------- 节点私有参数（节点名：master_arm / slave_arm / teleop_communication）----------
+master_arm:
+  mass: 1.0
+  damping: 20.0
+  stiffness: 0.0
+  control_dt: 0.02
+  enable_force_feedback: false   # true：导纳力 = 主端力传感器 − 从端反馈 wrench
+  z1_mode: "real"
+  z1_ip: "192.168.123.110"       # 与 motion SDK 一致时可与 /master/arm_ip 相同
+  command_arm_in_sim: false      # 主端仿真时是否仍下发运动；实机 false
+  workspace_limit_enable: true
+  workspace_pos_min: [0.22, -0.42, 0.08]
+  workspace_pos_max: [0.78, 0.42, 0.62]
+  workspace_rpy_abs_max: 1.35
+  state_pub_hz: 100
+  # 单机（同一 roscore、仅一侧力节点）可保持默认 /force_sensor，删除下一行或改为 "/force_sensor"
+  force_sensor_topic: "/master_force"
+
+slave_arm:
+  mass: 1.0
+  damping: 20.0
+  stiffness: 0.0
+  control_dt: 0.02
+  enable_force_feedback: false   # true：导纳力 = 网络主端 wrench − 从端环境力
+  z1_mode: "real"
+  z1_ip: "192.168.120.110"
+  workspace_limit_enable: true
+  workspace_pos_min: [0.22, -0.42, 0.08]
+  workspace_pos_max: [0.78, 0.42, 0.62]
+  workspace_rpy_abs_max: 1.35
+  state_pub_hz: 100
+  force_sensor_topic: "/slave_force"    # 从端力话题，与主端区分
+
+teleop_communication:
+  buffer_depth: 30               # 抖动缓冲队列深度（越大延迟越大、越平滑）
+  master_wrench_topic: "/master_arm/wrench"

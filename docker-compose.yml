@@ -1,0 +1,26 @@
+services:
+  ros-noetic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ros-noetic-vnc:latest
+    container_name: ros1_teleop
+    platform: linux/amd64
+    stdin_open: true
+    tty: true
+    environment:
+      DISPLAY: ":1"
+      ROS_MASTER_URI: http://localhost:11311
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      LIBGL_ALWAYS_INDIRECT: "0"
+      MESA_LOADER_DRIVER_OVERRIDE: "swrast"
+      MESA_GL_VERSION_OVERRIDE: "3.3"
+      MESA_GLSL_VERSION_OVERRIDE: "330"
+      GALLIUM_DRIVER: "llvmpipe"
+      QT_X11_NO_MITSHM: "1"
+    volumes:
+      - .:/workspace/z1_teleop:rw
+    ports:
+      - "5901:5901"
+    working_dir: /workspace/z1_teleop
+    command: /start_vnc.sh
