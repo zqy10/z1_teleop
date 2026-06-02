@@ -1,0 +1,8 @@
+prefix=/home/zhouxian/桌面/tool_ws/unitree_ws/src/z1_controller/devel
+
+Name: h1_description
+Description: Description of h1_description
+Version: 1.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

@@ -1,0 +1,1 @@
+/usr/bin/c++   -O3 -std=c++14 -pthread  -rdynamic CMakeFiles/z1_ctrl.dir/main.cpp.o  -o z1_ctrl   -L/unitree_ws/src/z1_controller/lib  -Wl,-rpath,/unitree_ws/src/z1_controller/lib -lZ1_x86_64 

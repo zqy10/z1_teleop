@@ -1,0 +1,8 @@
+prefix=/home/zhouxian/桌面/tool_ws/unitree_ws/src/z1_controller/devel
+
+Name: unitree_legged_real
+Description: Description of unitree_legged_real
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
