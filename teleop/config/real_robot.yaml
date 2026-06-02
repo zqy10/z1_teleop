@@ -1,0 +1,82 @@
+# =============================================================================
+# Z1 主从遥操作 — 实机 ROS 参数
+# =============================================================================
+# 使用前：roscore 已启动，然后执行
+#   ./teleop/scripts/load_real_params.sh
+# 修改本文件后需重新 load 才能在当前 roscore 生效。
+#
+# 说明：
+#   - 下列参数由 C++ 节点读取（master_arm / slave_arm / teleop_communication）。
+#   - 主端 UDP：teleop/scripts/master_arm.cpp → MASTER_ARM_IP, MASTER_LOCAL/REMOTE_PORT
+#   - 从端 UDP：teleop/scripts/slave_arm.cpp  → SLAVE_ARM_IP,  SLAVE_LOCAL/REMOTE_PORT
+#   - 修改 IP/端口后需重新 catkin_make -C teleop/ws
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# master_arm 节点（rosrun teleop_arm master_arm）
+# 私有参数前缀为 ~，即 /master_arm/...
+# -----------------------------------------------------------------------------
+master_arm:
+  # 启动后 backToStart() 完成，静止保持竖直 home 的等待时间（秒），此阶段不启用导纳
+  init_wait_sec: 4.0
+
+  # 导纳遥操作持续时间（秒），到时自动回零、切 PASSIVE 并退出节点；300 = 5 分钟
+  run_duration_sec: 30.0
+
+  # 导纳控制：M、B、K（标量，六维对角相同），与 control_dt 配合使用
+  mass: 0.5
+  damping: 2.0
+  stiffness: 0.0
+
+  # 主控制循环周期（秒），50Hz 对应 0.02
+  control_dt: 0.02
+
+  # 是否双边力反馈：true 时导纳力 = 本端力传感器 − 网络对端 wrench（经力传感器坐标变换）
+  enable_force_feedback: false
+
+  # 工作空间软限位（笛卡尔 [x,y,z,rx,ry,rz]）
+  workspace_limit_enable: true
+  workspace_pos_min: [0.22, -0.42, 0.08]   # 位置下限 (m)
+  workspace_pos_max: [0.78, 0.42, 0.62]    # 位置上限 (m)
+  workspace_rpy_abs_max: 1.35              # 姿态 RPY 绝对值上限 (rad)
+
+  # 真机状态发布频率：/master_arm/tool_pose、tool_velocity、wrench
+  state_pub_hz: 100
+
+  # 本端力传感器订阅话题（geometry_msgs/Wrench）
+  force_sensor_topic: "/master_force"
+
+# -----------------------------------------------------------------------------
+# slave_arm 节点（rosrun teleop_arm slave_arm）
+# -----------------------------------------------------------------------------
+slave_arm:
+  init_wait_sec: 10.0
+  run_duration_sec: 300.0
+
+  mass: 1.0
+  damping: 20.0
+  stiffness: 0.0
+  control_dt: 0.02
+
+  # true：导纳力 = 主端反馈 wrench − 从端力传感器（经变换）
+  enable_force_feedback: true
+
+  workspace_limit_enable: true
+  workspace_pos_min: [0.22, -0.42, 0.08]
+  workspace_pos_max: [0.78, 0.42, 0.62]
+  workspace_rpy_abs_max: 1.35
+
+  state_pub_hz: 100
+
+  force_sensor_topic: "/slave_force"
+
+# -----------------------------------------------------------------------------
+# teleop_communication 节点（rosrun teleop_arm communication _role:=master|slave）
+# role 由命令行 _role:= 指定，不在此文件配置
+# -----------------------------------------------------------------------------
+teleop_communication:
+  # 网络帧抖动缓冲深度：越大越平滑、延迟越大（约 depth × 10ms）
+  buffer_depth: 30
+
+  # 主端打包时订阅的 wrench 来源（通常为 master_arm 发布的 WrenchStamped）
+  master_wrench_topic: "/master_arm/wrench"
