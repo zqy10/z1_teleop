@@ -2,3 +2,4 @@ unitree_ws/
 teleop/ws/build
 teleop/ws/devel
 teleop/scripts/__pycache__
+teleop_sim/__pycache__
