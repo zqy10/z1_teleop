@@ -39,7 +39,7 @@
 #define DEFAULT_CONTROL_DT 0.02
 #define DEFAULT_MASS 1.0
 #define DEFAULT_DAMPING 20.0
-#define DEFAULT_STIFFNESS 0.0
+#define DEFAULT_STIFFNESS 7.5
 
 #define CARTESIAN_ORI_SPEED 1.0
 #define CARTESIAN_POS_SPEED 0.8
@@ -534,7 +534,7 @@ class SlaveTeleopArm {
     const Wrench6 fr = wr; //force_transform_.transform(wr);
     Wrench6 out{};
     for (int i = 0; i < 6; ++i) {
-      out[i] = fr[i] - wl[i];
+      out[i] = fr[i] + wl[i];
       out[i] = out[i] * 4.5;
     }
     const double period = debugLogPeriod();

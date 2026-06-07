@@ -39,7 +39,7 @@
 #define DEFAULT_CONTROL_DT 0.02
 #define DEFAULT_MASS 1.0
 #define DEFAULT_DAMPING 20.0
-#define DEFAULT_STIFFNESS 0.0
+#define DEFAULT_STIFFNESS 7.5
 
 #define CARTESIAN_ORI_SPEED 1.0
 #define CARTESIAN_POS_SPEED 0.8
@@ -287,7 +287,7 @@ class MasterTeleopArm {
  public:
   MasterTeleopArm() {
     ros::NodeHandle pnh("~");
-    pnh.param("enable_force_feedback", enable_force_feedback_, false);
+    pnh.param("enable_force_feedback", enable_force_feedback_, true);
     pnh.param("init_wait_sec", init_wait_sec_, INIT_WAIT_SEC_DEFAULT);
     pnh.param("run_duration_sec", run_duration_sec_, TELEOP_RUN_DURATION_SEC_DEFAULT);
     // Debug logging change: set to 0 to disable detailed terminal debug output.
@@ -520,10 +520,10 @@ class MasterTeleopArm {
     for (int i = 0; i < 6; ++i) {
       wr[i] = teleop_frame_.wrench[i];
     }
-    const Wrench6 fr = force_transform_.transform(wr);
+    const Wrench6 fr = wr; //force_transform_.transform(wr);
     Wrench6 out{};
     for (int i = 0; i < 6; ++i) {
-      out[i] = wl[i] - fr[i];
+      out[i] = wl[i] + fr[i];
       out[i] = out[i] * 4.5;
     }
     const double period = debugLogPeriod();
@@ -596,7 +596,7 @@ class MasterTeleopArm {
     }
   }
 
-  bool enable_force_feedback_ = false;
+  bool enable_force_feedback_ = true;
   double dt_ = DEFAULT_CONTROL_DT;
   double init_wait_sec_ = INIT_WAIT_SEC_DEFAULT;
   double run_duration_sec_ = TELEOP_RUN_DURATION_SEC_DEFAULT;
