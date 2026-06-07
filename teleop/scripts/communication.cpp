@@ -69,26 +69,29 @@ Pose6 poseMsgTo6(const geometry_msgs::Pose& msg) {
 class MasterArmDataPackager {
  public:
   void start() {
-    std::string wrench_topic = "/master_arm/wrench";
-    ros::NodeHandle pnh("~");
-    paramWithLegacyNamespace(pnh, "master_wrench_topic", wrench_topic);
-
-    desired_sub_ = nh_.subscribe("/master/desired_pose", 10, &MasterArmDataPackager::desiredPoseCb, this);
-    wrench_sub_ = nh_.subscribe(wrench_topic, 10, &MasterArmDataPackager::masterWrenchCb, this);
+    pose_sub_ = nh_.subscribe("/master_arm/tool_pose", 10, &MasterArmDataPackager::poseCb, this);
+    vel_sub_ = nh_.subscribe("/master_arm/tool_velocity", 10, &MasterArmDataPackager::velCb, this);
+    wrench_sub_ = nh_.subscribe("/master_arm/wrench", 10, &MasterArmDataPackager::wrenchCb, this);
     net_pub_ = nh_.advertise<teleop_msgs::TeleopFrame>("/network/master_frame", 50);
     pack_timer_ = nh_.createTimer(ros::Duration(0.01), &MasterArmDataPackager::packAndSendCb, this);
   }
 
  private:
-  void desiredPoseCb(const geometry_msgs::Pose::ConstPtr& msg) {
+  void poseCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
     std::lock_guard<std::mutex> lock(state_lock_);
-    desired_pose_ = poseMsgTo6(*msg);
+    pose_ = poseMsgTo6(msg->pose);
   }
 
-  void masterWrenchCb(const geometry_msgs::WrenchStamped::ConstPtr& msg) {
+  void velCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
     std::lock_guard<std::mutex> lock(state_lock_);
-    master_wrench_ = {msg->wrench.force.x,  msg->wrench.force.y,  msg->wrench.force.z,
-                      msg->wrench.torque.x, msg->wrench.torque.y, msg->wrench.torque.z};
+    velocity_ = {msg->twist.linear.x,  msg->twist.linear.y,  msg->twist.linear.z,
+                 msg->twist.angular.x, msg->twist.angular.y, msg->twist.angular.z};
+  }
+
+  void wrenchCb(const geometry_msgs::WrenchStamped::ConstPtr& msg) {
+    std::lock_guard<std::mutex> lock(state_lock_);
+    wrench_ = {msg->wrench.force.x,  msg->wrench.force.y,  msg->wrench.force.z,
+               msg->wrench.torque.x, msg->wrench.torque.y, msg->wrench.torque.z};
   }
 
   void packAndSendCb(const ros::TimerEvent&) {
@@ -97,22 +100,24 @@ class MasterArmDataPackager {
     frame.seq_num = ++seq_counter_;
     {
       std::lock_guard<std::mutex> lock(state_lock_);
-      std::copy(desired_pose_.begin(), desired_pose_.end(), frame.pose.begin());
-      std::fill(frame.velocity.begin(), frame.velocity.end(), 0.0);
-      std::copy(master_wrench_.begin(), master_wrench_.end(), frame.wrench.begin());
+      std::copy(pose_.begin(), pose_.end(), frame.pose.begin());
+      std::copy(velocity_.begin(), velocity_.end(), frame.velocity.begin());
+      std::copy(wrench_.begin(), wrench_.end(), frame.wrench.begin());
     }
     net_pub_.publish(frame);
   }
 
   ros::NodeHandle nh_;
-  ros::Subscriber desired_sub_;
+  ros::Subscriber pose_sub_;
+  ros::Subscriber vel_sub_;
   ros::Subscriber wrench_sub_;
   ros::Publisher net_pub_;
   ros::Timer pack_timer_;
 
   std::mutex state_lock_;
-  Pose6 desired_pose_{};
-  std::array<double, 6> master_wrench_{};
+  Pose6 pose_{};
+  std::array<double, 6> velocity_{};
+  std::array<double, 6> wrench_{};
   uint32_t seq_counter_ = 0;
 };
 

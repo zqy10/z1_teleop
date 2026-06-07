@@ -82,6 +82,15 @@ static double clampd(double v, double lo, double hi) {
   return std::max(lo, std::min(hi, v));
 }
 
+// Frame map between the two arms placed back-to-back. Position maps
+// (x, y, z) -> (-x, y, z) and orientation (r, p, y) -> (-r, p, -y) so both arms
+// move along the same physical direction. This map is an involution (applying
+// it twice is the identity), so each end applies it to the remote pose
+// symmetrically for bilateral teleop.
+static Pose6 mirrorXZ(const Pose6& v) {
+  return {-v[0], v[1], v[2], -v[3], v[4], -v[5]};
+}
+
 static CtrlComponents* createCtrlComponents() {
   auto* ctrl = new CtrlComponents();
   ctrl->dt = 0.002;
@@ -392,7 +401,12 @@ class MasterTeleopArm {
           finishAndExit();
           break;
         }
-        ref = current_pose_;
+        if (!hasTeleopReference()) {
+          rate.sleep();
+          ros::spinOnce();
+          continue;
+        }
+        ref = referencePose();
         target = limiter_.clamp(admittance_.computeTargetPose(ref, admittanceForce()));
       }
 
@@ -535,6 +549,23 @@ class MasterTeleopArm {
                         out[0], out[1], out[2], out[3], out[4], out[5]);
     }
     return out;
+  }
+
+  Pose6 referencePose() const {
+    std::lock_guard<std::mutex> lock(teleop_lock_);
+    if (has_teleop_frame_) {
+      Pose6 p{};
+      for (int i = 0; i < 6; ++i) {
+        p[i] = teleop_frame_.pose[i];
+      }
+      return mirrorXZ(p);
+    }
+    return current_pose_;
+  }
+
+  bool hasTeleopReference() const {
+    std::lock_guard<std::mutex> lock(teleop_lock_);
+    return has_teleop_frame_;
   }
 
   void publishPose6(geometry_msgs::Pose& msg, const Pose6& pose6) {
