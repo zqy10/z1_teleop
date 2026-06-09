@@ -82,13 +82,11 @@ static double clampd(double v, double lo, double hi) {
   return std::max(lo, std::min(hi, v));
 }
 
-// Frame map between the two arms placed back-to-back. Position maps
-// (x, y, z) -> (-x, y, z) and orientation (r, p, y) -> (-r, p, -y) so both arms
-// move along the same physical direction. This map is an involution (applying
-// it twice is the identity), so each end applies it to the remote pose
-// symmetrically for bilateral teleop.
+// Reflect a 6-vector [x, y, z, rx, ry, rz] across the X–Z plane (negate Y).
+// Maps the master's base frame to the slave's when the two arms are placed
+// back-to-back, so the slave copies the master's motion as a mirror image.
 static Pose6 mirrorXZ(const Pose6& v) {
-  return {-v[0], v[1], v[2], -v[3], v[4], -v[5]};
+  return {-v[0], -v[1], v[2], -v[3], v[4], -v[5]};
 }
 
 static CtrlComponents* createCtrlComponents() {
@@ -186,7 +184,7 @@ class AdmittanceController {
 class ForceSensorTransform {
  public:
   Wrench6 transform(const Wrench6& w) const {
-    return {w[2], w[0], w[1], w[5], w[3], w[4]};
+    return {w[2], -w[0], w[1], w[5], -w[3], w[4]};
   }
 };
 
@@ -558,6 +556,7 @@ class SlaveTeleopArm {
         p[i] = teleop_frame_.pose[i];
       }
       return mirrorXZ(p);
+      
     }
     return current_pose_;
   }
