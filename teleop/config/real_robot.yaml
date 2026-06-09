@@ -17,13 +17,18 @@
 # 私有参数前缀为 ~，即 /master_arm/...
 # -----------------------------------------------------------------------------
 master_arm:
+  # FT2 架构：主端 = 操作者主导的 leader。以自身实测位姿为参考，由本端力传感器
+  # （操作者推力）经导纳驱动运动；从端回传的接触力叠加为阻力，让操作者感受到环境。
+
   # 启动后 backToStart() 完成，静止保持竖直 home 的等待时间（秒），此阶段不启用导纳
   init_wait_sec: 4.0
 
   # 导纳遥操作持续时间（秒），到时自动回零、切 PASSIVE 并退出节点；300 = 5 分钟
   run_duration_sec: 30.0
 
-  # 导纳控制：M、B、K（标量，六维对角相同），与 control_dt 配合使用
+  # 导纳控制：M、B、K（标量，六维对角相同），与 control_dt 配合使用。
+  # 作为 leader 的「手感」参数：damping 越大 leader 越「黏」；stiffness 保持 0
+  # 时导纳为「力→速度」源，需实机微调。
   mass: 0.5
   damping: 2.0
   stiffness: 0.0
@@ -31,8 +36,9 @@ master_arm:
   # 主控制循环周期（秒），50Hz 对应 0.02
   control_dt: 0.02
 
-  # 是否双边力反馈：true 时导纳力 = 本端力传感器 − 网络对端 wrench（经力传感器坐标变换）
-  enable_force_feedback: false
+  # FT2 力反馈：true 时导纳力 = 本端操作者力 + 从端回传接触力（让操作者感到接触阻力）。
+  # 这是 FT2 富接触遥操作的核心，必须开启。
+  enable_force_feedback: true
 
   # 工作空间软限位（笛卡尔 [x,y,z,rx,ry,rz]）
   workspace_limit_enable: true
@@ -50,15 +56,19 @@ master_arm:
 # slave_arm 节点（rosrun teleop_arm slave_arm）
 # -----------------------------------------------------------------------------
 slave_arm:
+  # FT2 架构：从端 = 刚性位置跟踪的 follower。纯位置跟踪主端镜像位姿，不做导纳柔顺；
+  # 本端力传感器仅用于把接触力回传给主端。
   init_wait_sec: 10.0
   run_duration_sec: 300.0
 
+  # 注意：FT2 刚性跟踪下，从端不再调用导纳控制，以下 mass/damping/stiffness 与
+  # enable_force_feedback 均不参与从端控制（保留键以兼容，便于切回双边时复用）。
   mass: 1.0
   damping: 20.0
   stiffness: 0.0
   control_dt: 0.02
 
-  # true：导纳力 = 主端反馈 wrench − 从端力传感器（经变换）
+  # FT2 下从端控制不使用此项（从端不接收主端力）。
   enable_force_feedback: true
 
   workspace_limit_enable: true

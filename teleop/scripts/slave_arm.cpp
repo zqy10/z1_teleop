@@ -387,7 +387,7 @@ class SlaveTeleopArm {
           finalizeForceZero();
           phase_ = TeleopPhase::TELEOP;
           teleop_start_ = ros::Time::now();
-          ROS_INFO("slave: CARTESIAN admittance teleop started (%.0fs)", run_duration_sec_);
+          ROS_INFO("slave: CARTESIAN stiff position tracking started (%.0fs)", run_duration_sec_);
         } else {
           accumulateForceZeroSample();
         }
@@ -403,8 +403,12 @@ class SlaveTeleopArm {
           ros::spinOnce();
           continue;
         }
+        // FT2 follower: stiff position tracking of the master's mirrored pose.
+        // No admittance compliance — the slave presses into the environment as
+        // commanded and builds up contact force, which is fed back to the master.
+        // Its local force sensor is used only to report that contact (stateLoop).
         ref = referencePose();
-        target = limiter_.clamp(admittance_.computeTargetPose(ref, admittanceForce()));
+        target = limiter_.clamp(ref);
       }
 
       publishPose6(out_msg, target);

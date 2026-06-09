@@ -82,15 +82,6 @@ static double clampd(double v, double lo, double hi) {
   return std::max(lo, std::min(hi, v));
 }
 
-// Frame map between the two arms placed back-to-back. Position maps
-// (x, y, z) -> (-x, y, z) and orientation (r, p, y) -> (-r, p, -y) so both arms
-// move along the same physical direction. This map is an involution (applying
-// it twice is the identity), so each end applies it to the remote pose
-// symmetrically for bilateral teleop.
-static Pose6 mirrorXZ(const Pose6& v) {
-  return {-v[0], v[1], v[2], -v[3], v[4], -v[5]};
-}
-
 static CtrlComponents* createCtrlComponents() {
   auto* ctrl = new CtrlComponents();
   ctrl->dt = 0.002;
@@ -401,11 +392,11 @@ class MasterTeleopArm {
           finishAndExit();
           break;
         }
-        if (!hasTeleopReference()) {
-          rate.sleep();
-          ros::spinOnce();
-          continue;
-        }
+        // FT2 leader: the master is operator-led, not a tracker of the slave.
+        // Reference is the master's own measured pose; the operator's force
+        // sensor drives it via admittance, and the slave's reflected contact
+        // force opposes that push (see admittanceForce). It runs on its own and
+        // does not wait for a remote frame — the slave force frame is optional.
         ref = referencePose();
         target = limiter_.clamp(admittance_.computeTargetPose(ref, admittanceForce()));
       }
@@ -551,17 +542,10 @@ class MasterTeleopArm {
     return out;
   }
 
-  Pose6 referencePose() const {
-    std::lock_guard<std::mutex> lock(teleop_lock_);
-    if (has_teleop_frame_) {
-      Pose6 p{};
-      for (int i = 0; i < 6; ++i) {
-        p[i] = teleop_frame_.pose[i];
-      }
-      return mirrorXZ(p);
-    }
-    return current_pose_;
-  }
+  // FT2 leader: the master no longer tracks the slave's pose (the slave sends
+  // no pose in the position-force architecture). Its motion reference is its own
+  // measured pose, so the operator's force drives it freely via admittance.
+  Pose6 referencePose() const { return current_pose_; }
 
   bool hasTeleopReference() const {
     std::lock_guard<std::mutex> lock(teleop_lock_);

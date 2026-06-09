@@ -68,10 +68,10 @@ Pose6 poseMsgTo6(const geometry_msgs::Pose& msg) {
 
 class MasterArmDataPackager {
  public:
+  // FT2 master → slave channel: position + velocity only.
   void start() {
     pose_sub_ = nh_.subscribe("/master_arm/tool_pose", 10, &MasterArmDataPackager::poseCb, this);
     vel_sub_ = nh_.subscribe("/master_arm/tool_velocity", 10, &MasterArmDataPackager::velCb, this);
-    wrench_sub_ = nh_.subscribe("/master_arm/wrench", 10, &MasterArmDataPackager::wrenchCb, this);
     net_pub_ = nh_.advertise<teleop_msgs::TeleopFrame>("/network/master_frame", 50);
     pack_timer_ = nh_.createTimer(ros::Duration(0.01), &MasterArmDataPackager::packAndSendCb, this);
   }
@@ -88,12 +88,7 @@ class MasterArmDataPackager {
                  msg->twist.angular.x, msg->twist.angular.y, msg->twist.angular.z};
   }
 
-  void wrenchCb(const geometry_msgs::WrenchStamped::ConstPtr& msg) {
-    std::lock_guard<std::mutex> lock(state_lock_);
-    wrench_ = {msg->wrench.force.x,  msg->wrench.force.y,  msg->wrench.force.z,
-               msg->wrench.torque.x, msg->wrench.torque.y, msg->wrench.torque.z};
-  }
-
+  // FT2: the wrench field is left zero — the master never sends force to the slave.
   void packAndSendCb(const ros::TimerEvent&) {
     teleop_msgs::TeleopFrame frame;
     frame.header.stamp = ros::Time::now();
@@ -102,7 +97,7 @@ class MasterArmDataPackager {
       std::lock_guard<std::mutex> lock(state_lock_);
       std::copy(pose_.begin(), pose_.end(), frame.pose.begin());
       std::copy(velocity_.begin(), velocity_.end(), frame.velocity.begin());
-      std::copy(wrench_.begin(), wrench_.end(), frame.wrench.begin());
+      frame.wrench.fill(0.0);
     }
     net_pub_.publish(frame);
   }
@@ -110,68 +105,51 @@ class MasterArmDataPackager {
   ros::NodeHandle nh_;
   ros::Subscriber pose_sub_;
   ros::Subscriber vel_sub_;
-  ros::Subscriber wrench_sub_;
   ros::Publisher net_pub_;
   ros::Timer pack_timer_;
 
   std::mutex state_lock_;
   Pose6 pose_{};
   std::array<double, 6> velocity_{};
-  std::array<double, 6> wrench_{};
   uint32_t seq_counter_ = 0;
 };
 
 class SlaveArmDataPackager {
  public:
+  // FT2 slave → master channel: contact wrench only.
   void start() {
-    pose_sub_ = nh_.subscribe("/slave/tool_pose", 10, &SlaveArmDataPackager::poseCb, this);
-    vel_sub_ = nh_.subscribe("/slave/tool_velocity", 10, &SlaveArmDataPackager::velCb, this);
     wrench_sub_ = nh_.subscribe("/slave/wrench", 10, &SlaveArmDataPackager::wrenchCb, this);
     net_pub_ = nh_.advertise<teleop_msgs::TeleopFrame>("/network/slave_frame", 50);
     pack_timer_ = nh_.createTimer(ros::Duration(0.01), &SlaveArmDataPackager::packAndSendCb, this);
   }
 
  private:
-  void poseCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
-    std::lock_guard<std::mutex> lock(state_lock_);
-    pose_ = poseMsgTo6(msg->pose);
-  }
-
-  void velCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
-    std::lock_guard<std::mutex> lock(state_lock_);
-    velocity_ = {msg->twist.linear.x,  msg->twist.linear.y,  msg->twist.linear.z,
-                 msg->twist.angular.x, msg->twist.angular.y, msg->twist.angular.z};
-  }
-
   void wrenchCb(const geometry_msgs::WrenchStamped::ConstPtr& msg) {
     std::lock_guard<std::mutex> lock(state_lock_);
     wrench_ = {msg->wrench.force.x,  msg->wrench.force.y,  msg->wrench.force.z,
                msg->wrench.torque.x, msg->wrench.torque.y, msg->wrench.torque.z};
   }
 
+  // FT2: pose/velocity fields are left zero — the slave only feeds force back.
   void packAndSendCb(const ros::TimerEvent&) {
     teleop_msgs::TeleopFrame frame;
     frame.header.stamp = ros::Time::now();
     frame.seq_num = ++seq_counter_;
     {
       std::lock_guard<std::mutex> lock(state_lock_);
-      std::copy(pose_.begin(), pose_.end(), frame.pose.begin());
-      std::copy(velocity_.begin(), velocity_.end(), frame.velocity.begin());
+      frame.pose.fill(0.0);
+      frame.velocity.fill(0.0);
       std::copy(wrench_.begin(), wrench_.end(), frame.wrench.begin());
     }
     net_pub_.publish(frame);
   }
 
   ros::NodeHandle nh_;
-  ros::Subscriber pose_sub_;
-  ros::Subscriber vel_sub_;
   ros::Subscriber wrench_sub_;
   ros::Publisher net_pub_;
   ros::Timer pack_timer_;
 
   std::mutex state_lock_;
-  Pose6 pose_{};
-  std::array<double, 6> velocity_{};
   std::array<double, 6> wrench_{};
   uint32_t seq_counter_ = 0;
 };
